@@ -6,11 +6,11 @@ Public release feed for SixWays endpoint software. Customer Ballistics instances
 
 | URL | Description |
 |-----|-------------|
-| `/feed/latest.json` | Latest stable release with full detail |
-| `/feed/index.json` | Complete release catalog |
-| `/feed/channels/stable.json` | Stable channel releases |
-| `/feed/channels/beta.json` | Beta channel releases |
-| `/feed/versions/{version}.json` | Per-version detail with artifacts |
+| `/latest.json` | Latest stable release with full detail |
+| `/index.json` | Complete release catalog |
+| `/channels/stable.json` | Stable channel releases |
+| `/channels/beta.json` | Beta channel releases |
+| `/versions/{version}.json` | Per-version detail with artifacts |
 
 Base URL: `https://sixways-ai.github.io/releases`
 

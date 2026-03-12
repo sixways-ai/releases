@@ -132,7 +132,7 @@ jobs:
               }
 
               fs.writeFileSync(
-                path.join('feed', 'versions', `${version}.json`),
+                path.join('versions', `${version}.json`),
                 JSON.stringify(detail, null, 2) + '\n'
               );
             }
@@ -153,7 +153,7 @@ jobs:
               releases: feedReleases
             };
             fs.writeFileSync(
-              path.join('feed', 'index.json'),
+              path.join('index.json'),
               JSON.stringify(index, null, 2) + '\n'
             );
 
@@ -162,12 +162,12 @@ jobs:
             if (latestStable) {
               const latestDetail = JSON.parse(
                 fs.readFileSync(
-                  path.join('feed', 'versions', `${latestStable.version}.json`),
+                  path.join('versions', `${latestStable.version}.json`),
                   'utf8'
                 )
               );
               fs.writeFileSync(
-                path.join('feed', 'latest.json'),
+                path.join('latest.json'),
                 JSON.stringify({ schema_version: 1, ...latestDetail }, null, 2) + '\n'
               );
             }
@@ -184,7 +184,7 @@ jobs:
                 releases: entries
               };
               fs.writeFileSync(
-                path.join('feed', 'channels', `${channel}.json`),
+                path.join('channels', `${channel}.json`),
                 JSON.stringify(channelFile, null, 2) + '\n'
               );
             }
@@ -226,7 +226,6 @@ jobs:
 
       - name: Commit and push feed updates
         run: |
-          cd feed
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add -A
