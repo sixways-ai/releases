@@ -1,0 +1,238 @@
+name: Update Release Feed
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-feed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Regenerate feed from GitHub Releases
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Fetch all releases from GitHub API
+            const releases = await github.paginate(
+              github.rest.repos.listReleases,
+              { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 }
+            );
+
+            // Parse release metadata from tag and body
+            // Expected tag format: v1.0.0 or v1.0.0-beta.1
+            // Expected body format: YAML frontmatter block with structured metadata,
+            // followed by markdown release notes
+            const feedReleases = [];
+            const channelMap = {};
+
+            for (const rel of releases) {
+              if (rel.draft) continue;
+
+              const version = rel.tag_name.replace(/^v/, '');
+              const channel = rel.prerelease ? 'beta' : 'stable';
+
+              // Parse frontmatter from release body if present
+              let metadata = {};
+              let releaseNotes = rel.body || '';
+              const frontmatterMatch = releaseNotes.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+              if (frontmatterMatch) {
+                // Simple YAML-like parsing for key: value pairs
+                const lines = frontmatterMatch[1].split('\n');
+                for (const line of lines) {
+                  const kv = line.match(/^(\w+):\s*(.+)$/);
+                  if (kv) metadata[kv[1]] = kv[2].trim();
+                }
+                releaseNotes = frontmatterMatch[2].trim();
+              }
+
+              // Build artifacts from release assets
+              const artifacts = {};
+              for (const asset of rel.assets) {
+                // Parse platform/arch/type from asset name convention:
+                // sixways-{version}-{platform}-{arch}.{ext}
+                // or sixways-{version}.pkg (macos universal)
+                const info = parseAssetName(asset.name, version);
+                if (info) {
+                  const key = `${info.platform}/${info.arch}/${info.artifact_type}`;
+                  artifacts[key] = {
+                    filename: asset.name,
+                    download_url: asset.browser_download_url,
+                    sha256: metadata[`sha256_${asset.name.replace(/[^a-zA-Z0-9]/g, '_')}`] || null,
+                    size_bytes: asset.size,
+                    content_type: asset.content_type
+                  };
+                }
+              }
+
+              // Build summary (first 200 chars of notes, strip markdown)
+              const summary = releaseNotes
+                .replace(/#{1,6}\s/g, '')
+                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                .replace(/[*_`]/g, '')
+                .slice(0, 200)
+                .trim();
+
+              const releaseEntry = {
+                version,
+                channel,
+                released_at: rel.published_at,
+                update_urgency: metadata.urgency || 'recommended',
+                release_notes_summary: summary || null,
+                min_supported_version: metadata.min_version || null,
+                detail_url: `https://sixways-ai.github.io/releases/versions/${version}.json`
+              };
+
+              feedReleases.push(releaseEntry);
+
+              // Track per-channel
+              if (!channelMap[channel]) channelMap[channel] = [];
+              channelMap[channel].push(releaseEntry);
+
+              // Write per-version detail file
+              const detail = {
+                schema_version: 1,
+                version,
+                channel,
+                released_at: rel.published_at,
+                release_notes: releaseNotes,
+                release_notes_summary: summary || null,
+                min_supported_version: metadata.min_version || null,
+                update_urgency: metadata.urgency || 'recommended',
+                artifacts,
+                container_images: [],
+                github_release_url: rel.html_url
+              };
+
+              // Parse container images from frontmatter if present
+              // Format: containers: base=ghcr.io/sixways-ai/sixways-sandbox:1.0.0-base@sha256:abc
+              if (metadata.containers) {
+                const parts = metadata.containers.split(',');
+                for (const part of parts) {
+                  const match = part.trim().match(/^(\w+)=([^@]+)@(.+)$/);
+                  if (match) {
+                    const [, variant, imageRef, digest] = match;
+                    const [registry, tag] = imageRef.split(':');
+                    detail.container_images.push({
+                      variant,
+                      registry,
+                      tag: tag || version,
+                      digest
+                    });
+                  }
+                }
+              }
+
+              fs.writeFileSync(
+                path.join('feed', 'versions', `${version}.json`),
+                JSON.stringify(detail, null, 2) + '\n'
+              );
+            }
+
+            // Sort by release date descending
+            feedReleases.sort((a, b) =>
+              new Date(b.released_at) - new Date(a.released_at)
+            );
+
+            // Write index.json
+            const channels = [...new Set(feedReleases.map(r => r.channel))];
+            if (!channels.includes('stable')) channels.unshift('stable');
+            if (!channels.includes('beta')) channels.unshift('beta');
+            const index = {
+              schema_version: 1,
+              updated_at: new Date().toISOString(),
+              channels: [...new Set(channels)],
+              releases: feedReleases
+            };
+            fs.writeFileSync(
+              path.join('feed', 'index.json'),
+              JSON.stringify(index, null, 2) + '\n'
+            );
+
+            // Write latest.json (latest stable)
+            const latestStable = feedReleases.find(r => r.channel === 'stable');
+            if (latestStable) {
+              const latestDetail = JSON.parse(
+                fs.readFileSync(
+                  path.join('feed', 'versions', `${latestStable.version}.json`),
+                  'utf8'
+                )
+              );
+              fs.writeFileSync(
+                path.join('feed', 'latest.json'),
+                JSON.stringify({ schema_version: 1, ...latestDetail }, null, 2) + '\n'
+              );
+            }
+
+            // Write per-channel files
+            for (const [channel, entries] of Object.entries(channelMap)) {
+              entries.sort((a, b) =>
+                new Date(b.released_at) - new Date(a.released_at)
+              );
+              const channelFile = {
+                schema_version: 1,
+                channel,
+                latest_version: entries[0]?.version || null,
+                releases: entries
+              };
+              fs.writeFileSync(
+                path.join('feed', 'channels', `${channel}.json`),
+                JSON.stringify(channelFile, null, 2) + '\n'
+              );
+            }
+
+            // Helper: parse asset filename to platform/arch/type
+            function parseAssetName(name, version) {
+              const n = name.toLowerCase();
+              // macOS installer
+              if (n.endsWith('.pkg')) {
+                return { platform: 'macos', arch: 'universal', artifact_type: 'installer' };
+              }
+              // macOS binary (tar.gz)
+              if (n.includes('macos') && n.endsWith('.tar.gz')) {
+                const arch = n.includes('aarch64') || n.includes('arm64') ? 'aarch64' : 'x86_64';
+                return { platform: 'macos', arch, artifact_type: 'binary' };
+              }
+              // Windows installer
+              if (n.endsWith('.msi') || n.endsWith('.exe')) {
+                const arch = n.includes('arm64') || n.includes('aarch64') ? 'aarch64' : 'x86_64';
+                return { platform: 'windows', arch, artifact_type: 'installer' };
+              }
+              // Linux deb
+              if (n.endsWith('.deb')) {
+                const arch = n.includes('arm64') || n.includes('aarch64') ? 'aarch64' : 'x86_64';
+                return { platform: 'linux', arch, artifact_type: arch === 'aarch64' ? 'installer_deb_arm64' : 'installer_deb' };
+              }
+              // Linux rpm
+              if (n.endsWith('.rpm')) {
+                const arch = n.includes('arm64') || n.includes('aarch64') ? 'aarch64' : 'x86_64';
+                return { platform: 'linux', arch, artifact_type: arch === 'aarch64' ? 'installer_rpm_arm64' : 'installer_rpm' };
+              }
+              // Linux binary
+              if (n.includes('linux') && n.endsWith('.tar.gz')) {
+                const arch = n.includes('aarch64') || n.includes('arm64') ? 'aarch64' : 'x86_64';
+                return { platform: 'linux', arch, artifact_type: 'binary' };
+              }
+              return null;
+            }
+
+      - name: Commit and push feed updates
+        run: |
+          cd feed
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No feed changes to commit"
+          else
+            git commit -m "Update release feed"
+            git push
+          fi
