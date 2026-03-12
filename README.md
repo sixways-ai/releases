@@ -1,6 +1,6 @@
 # SixWays Release Feed
 
-Public release feed for SixWays endpoint software. Customer Ballistics instances poll this feed to discover available updates.
+Public release feed for SixWays endpoint software. Customer instances poll this feed to discover available updates.
 
 ## Feed URLs
 
