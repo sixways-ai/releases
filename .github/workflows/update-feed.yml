@@ -8,6 +8,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: update-feed
+  cancel-in-progress: false
+
 jobs:
   update-feed:
     runs-on: ubuntu-latest
@@ -46,10 +50,20 @@ jobs:
               const frontmatterMatch = releaseNotes.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
               if (frontmatterMatch) {
                 // Simple YAML-like parsing for key: value pairs
+                // Only allow known keys to prevent schema injection
+                const ALLOWED_KEYS = new Set([
+                  'urgency', 'min_version', 'containers',
+                ]);
+                const SHA256_KEY_RE = /^sha256_[a-zA-Z0-9_]+$/;
                 const lines = frontmatterMatch[1].split('\n');
                 for (const line of lines) {
                   const kv = line.match(/^(\w+):\s*(.+)$/);
-                  if (kv) metadata[kv[1]] = kv[2].trim();
+                  if (kv) {
+                    const key = kv[1];
+                    if (ALLOWED_KEYS.has(key) || SHA256_KEY_RE.test(key)) {
+                      metadata[key] = kv[2].trim();
+                    }
+                  }
                 }
                 releaseNotes = frontmatterMatch[2].trim();
               }
@@ -223,6 +237,25 @@ jobs:
               }
               return null;
             }
+
+      - name: Sign feed files (Ed25519)
+        if: env.FEED_SIGNING_KEY != ''
+        env:
+          FEED_SIGNING_KEY: ${{ secrets.FEED_SIGNING_KEY }}
+        run: |
+          # Install signify (lightweight Ed25519 signing tool)
+          sudo apt-get update -qq && sudo apt-get install -y -qq signify-openbsd
+          # Write the private key to a temporary file
+          echo "$FEED_SIGNING_KEY" > /tmp/feed.sec
+          # Sign each feed JSON file
+          for f in index.json latest.json channels/*.json; do
+            if [ -f "$f" ]; then
+              signify-openbsd -S -s /tmp/feed.sec -m "$f" -x "${f}.sig"
+            fi
+          done
+          # Clean up private key
+          shred -u /tmp/feed.sec
+          echo "Signed $(ls -1 *.sig channels/*.sig 2>/dev/null | wc -l) feed files"
 
       - name: Commit and push feed updates
         run: |
