@@ -55,3 +55,13 @@ Include `arm64` or `aarch64` in the filename for ARM builds.
 Current schema version: **1**
 
 All JSON files include a `schema_version` field. Customer instances should check this field and handle unknown versions gracefully.
+
+## Feed Signing
+
+Feed JSON files are signed with Ed25519 (signify-openbsd) when `FEED_SIGNING_KEY` GitHub Actions secret is configured. Signature files are committed alongside feed JSON. Clients should verify signatures against the public key.
+
+## GitHub Actions Secrets
+
+| Secret | Purpose |
+|--------|---------|
+| `FEED_SIGNING_KEY` | Ed25519 private key (signify-openbsd format) used to sign feed JSON files. When present, the publish workflow generates `.sig` files alongside each feed JSON. |
