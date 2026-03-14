@@ -25,23 +25,47 @@ jobs:
             const fs = require('fs');
             const path = require('path');
 
+            const COMPONENTS = ['endpoint', 'server', 'gateway', 'ml-gateway', 'sandbox', 'vscode-extension'];
+            const DOCKER_COMPONENTS = new Set(['server', 'gateway', 'ml-gateway', 'sandbox']);
+
             // Fetch all releases from GitHub API
             const releases = await github.paginate(
               github.rest.repos.listReleases,
               { owner: context.repo.owner, repo: context.repo.repo, per_page: 100 }
             );
 
-            // Parse release metadata from tag and body
-            // Expected tag format: v1.0.0 or v1.0.0-beta.1
-            // Expected body format: YAML frontmatter block with structured metadata,
-            // followed by markdown release notes
+            // Parse tag to extract component and version
+            // Supported formats:
+            //   endpoint/v1.3.0       -> component=endpoint, version=1.3.0
+            //   server/v1.3.0-beta.1  -> component=server, version=1.3.0-beta.1
+            //   v1.0.0                -> component=endpoint (legacy backwards compat)
+            function parseTag(tagName) {
+              const prefixMatch = tagName.match(/^([a-z0-9-]+)\/v(.+)$/);
+              if (prefixMatch) {
+                const component = prefixMatch[1];
+                if (COMPONENTS.includes(component)) {
+                  return { component, version: prefixMatch[2] };
+                }
+              }
+              // Legacy: bare vX.Y.Z tags are endpoint releases
+              const legacyMatch = tagName.match(/^v(.+)$/);
+              if (legacyMatch) {
+                return { component: 'endpoint', version: legacyMatch[1] };
+              }
+              return null;
+            }
+
             const feedReleases = [];
             const channelMap = {};
+            const componentLatest = {};
 
             for (const rel of releases) {
               if (rel.draft) continue;
 
-              const version = rel.tag_name.replace(/^v/, '');
+              const parsed = parseTag(rel.tag_name);
+              if (!parsed) continue;
+
+              const { component, version } = parsed;
               const channel = rel.prerelease ? 'beta' : 'stable';
 
               // Parse frontmatter from release body if present
@@ -49,15 +73,15 @@ jobs:
               let releaseNotes = rel.body || '';
               const frontmatterMatch = releaseNotes.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
               if (frontmatterMatch) {
-                // Simple YAML-like parsing for key: value pairs
-                // Only allow known keys to prevent schema injection
                 const ALLOWED_KEYS = new Set([
                   'urgency', 'min_version', 'containers',
+                  'component', 'docker_image', 'docker_digest',
+                  'vsix_url', 'helm_chart_version',
                 ]);
                 const SHA256_KEY_RE = /^sha256_[a-zA-Z0-9_]+$/;
                 const lines = frontmatterMatch[1].split('\n');
                 for (const line of lines) {
-                  const kv = line.match(/^(\w+):\s*(.+)$/);
+                  const kv = line.match(/^(\w[\w-]*):\s*(.+)$/);
                   if (kv) {
                     const key = kv[1];
                     if (ALLOWED_KEYS.has(key) || SHA256_KEY_RE.test(key)) {
@@ -68,22 +92,40 @@ jobs:
                 releaseNotes = frontmatterMatch[2].trim();
               }
 
-              // Build artifacts from release assets
+              // Build artifacts based on component type
               const artifacts = {};
-              for (const asset of rel.assets) {
-                // Parse platform/arch/type from asset name convention:
-                // sixways-{version}-{platform}-{arch}.{ext}
-                // or sixways-{version}.pkg (macos universal)
-                const info = parseAssetName(asset.name, version);
-                if (info) {
-                  const key = `${info.platform}/${info.arch}/${info.artifact_type}`;
-                  artifacts[key] = {
-                    filename: asset.name,
-                    download_url: asset.browser_download_url,
-                    sha256: metadata[`sha256_${asset.name.replace(/[^a-zA-Z0-9]/g, '_')}`] || null,
-                    size_bytes: asset.size,
-                    content_type: asset.content_type
+
+              if (DOCKER_COMPONENTS.has(component)) {
+                // Docker-based components: expect docker_image and docker_digest in frontmatter
+                if (metadata.docker_image || metadata.docker_digest) {
+                  artifacts.docker = {
+                    image: metadata.docker_image || null,
+                    digest: metadata.docker_digest || null,
+                    size_bytes: null
                   };
+                }
+              } else if (component === 'vscode-extension') {
+                // VS Code extension: expect vsix_url in frontmatter
+                if (metadata.vsix_url) {
+                  artifacts.vsix = {
+                    url: metadata.vsix_url,
+                    size_bytes: null
+                  };
+                }
+              } else {
+                // Endpoint and other binary-based components: parse release assets
+                for (const asset of rel.assets) {
+                  const info = parseAssetName(asset.name, version);
+                  if (info) {
+                    const key = `${info.platform}/${info.arch}/${info.artifact_type}`;
+                    artifacts[key] = {
+                      filename: asset.name,
+                      download_url: asset.browser_download_url,
+                      sha256: metadata[`sha256_${asset.name.replace(/[^a-zA-Z0-9]/g, '_')}`] || null,
+                      size_bytes: asset.size,
+                      content_type: asset.content_type
+                    };
+                  }
                 }
               }
 
@@ -96,13 +138,15 @@ jobs:
                 .trim();
 
               const releaseEntry = {
+                component,
                 version,
                 channel,
                 released_at: rel.published_at,
                 update_urgency: metadata.urgency || 'recommended',
                 release_notes_summary: summary || null,
                 min_supported_version: metadata.min_version || null,
-                detail_url: `https://sixways-ai.github.io/releases/versions/${version}.json`
+                artifacts,
+                detail_url: `https://sixways-ai.github.io/releases/versions/${component}/${version}.json`
               };
 
               feedReleases.push(releaseEntry);
@@ -111,9 +155,17 @@ jobs:
               if (!channelMap[channel]) channelMap[channel] = [];
               channelMap[channel].push(releaseEntry);
 
+              // Track per-component latest
+              if (!componentLatest[component]) componentLatest[component] = {};
+              const cl = componentLatest[component];
+              if (!cl[channel] || new Date(rel.published_at) > new Date(cl[channel].released_at)) {
+                cl[channel] = releaseEntry;
+              }
+
               // Write per-version detail file
               const detail = {
-                schema_version: 1,
+                schema_version: 2,
+                component,
                 version,
                 channel,
                 released_at: rel.published_at,
@@ -122,12 +174,12 @@ jobs:
                 min_supported_version: metadata.min_version || null,
                 update_urgency: metadata.urgency || 'recommended',
                 artifacts,
-                container_images: [],
+                helm_chart_version: metadata.helm_chart_version || null,
                 github_release_url: rel.html_url
               };
 
-              // Parse container images from frontmatter if present
-              // Format: containers: base=ghcr.io/sixways-ai/sixways-sandbox:1.0.0-base@sha256:abc
+              // Parse container images from frontmatter if present (legacy format)
+              detail.container_images = [];
               if (metadata.containers) {
                 const parts = metadata.containers.split(',');
                 for (const part of parts) {
@@ -145,8 +197,12 @@ jobs:
                 }
               }
 
+              const versionDir = path.join('versions', component);
+              if (!fs.existsSync(versionDir)) {
+                fs.mkdirSync(versionDir, { recursive: true });
+              }
               fs.writeFileSync(
-                path.join('versions', `${version}.json`),
+                path.join(versionDir, `${version}.json`),
                 JSON.stringify(detail, null, 2) + '\n'
               );
             }
@@ -157,13 +213,11 @@ jobs:
             );
 
             // Write index.json
-            const channels = [...new Set(feedReleases.map(r => r.channel))];
-            if (!channels.includes('stable')) channels.unshift('stable');
-            if (!channels.includes('beta')) channels.unshift('beta');
             const index = {
-              schema_version: 1,
+              schema_version: 2,
               updated_at: new Date().toISOString(),
-              channels: [...new Set(channels)],
+              components: COMPONENTS,
+              channels: ['stable', 'beta'],
               releases: feedReleases
             };
             fs.writeFileSync(
@@ -171,18 +225,55 @@ jobs:
               JSON.stringify(index, null, 2) + '\n'
             );
 
-            // Write latest.json (latest stable)
-            const latestStable = feedReleases.find(r => r.channel === 'stable');
-            if (latestStable) {
-              const latestDetail = JSON.parse(
-                fs.readFileSync(
-                  path.join('versions', `${latestStable.version}.json`),
-                  'utf8'
-                )
-              );
+            // Write latest.json (latest per component per channel)
+            const latestObj = {};
+            for (const comp of COMPONENTS) {
+              const cl = componentLatest[comp];
+              if (cl) {
+                const entry = cl.stable || cl.beta || null;
+                latestObj[comp] = entry ? {
+                  version: entry.version,
+                  channel: entry.channel,
+                  released_at: entry.released_at,
+                  detail_url: entry.detail_url
+                } : null;
+              } else {
+                latestObj[comp] = null;
+              }
+            }
+            fs.writeFileSync(
+              path.join('latest.json'),
+              JSON.stringify({
+                schema_version: 2,
+                updated_at: new Date().toISOString(),
+                latest: latestObj
+              }, null, 2) + '\n'
+            );
+
+            // Write per-component latest.json files
+            for (const comp of COMPONENTS) {
+              const compDir = path.join('components', comp);
+              if (!fs.existsSync(compDir)) {
+                fs.mkdirSync(compDir, { recursive: true });
+              }
+              const cl = componentLatest[comp] || {};
+              const compLatest = {
+                schema_version: 2,
+                component: comp,
+                latest_stable: cl.stable ? {
+                  version: cl.stable.version,
+                  released_at: cl.stable.released_at,
+                  detail_url: cl.stable.detail_url
+                } : null,
+                latest_beta: cl.beta ? {
+                  version: cl.beta.version,
+                  released_at: cl.beta.released_at,
+                  detail_url: cl.beta.detail_url
+                } : null
+              };
               fs.writeFileSync(
-                path.join('latest.json'),
-                JSON.stringify({ schema_version: 1, ...latestDetail }, null, 2) + '\n'
+                path.join(compDir, 'latest.json'),
+                JSON.stringify(compLatest, null, 2) + '\n'
               );
             }
 
@@ -192,7 +283,7 @@ jobs:
                 new Date(b.released_at) - new Date(a.released_at)
               );
               const channelFile = {
-                schema_version: 1,
+                schema_version: 2,
                 channel,
                 latest_version: entries[0]?.version || null,
                 releases: entries
@@ -248,14 +339,14 @@ jobs:
           # Write the private key to a temporary file
           echo "$FEED_SIGNING_KEY" > /tmp/feed.sec
           # Sign each feed JSON file
-          for f in index.json latest.json channels/*.json; do
+          for f in index.json latest.json channels/*.json components/*/latest.json versions/*/*.json; do
             if [ -f "$f" ]; then
               signify-openbsd -S -s /tmp/feed.sec -m "$f" -x "${f}.sig"
             fi
           done
           # Clean up private key
           shred -u /tmp/feed.sec
-          echo "Signed $(ls -1 *.sig channels/*.sig 2>/dev/null | wc -l) feed files"
+          echo "Signed $(find . -name '*.sig' | wc -l) feed files"
 
       - name: Commit and push feed updates
         run: |

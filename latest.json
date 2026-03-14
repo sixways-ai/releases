@@ -1,6 +1,12 @@
 {
-  "schema_version": 1,
-  "version": null,
-  "channel": "stable",
-  "message": "No releases published yet"
+  "schema_version": 2,
+  "updated_at": "2026-03-14T00:00:00Z",
+  "latest": {
+    "endpoint": null,
+    "server": null,
+    "gateway": null,
+    "ml-gateway": null,
+    "sandbox": null,
+    "vscode-extension": null
+  }
 }

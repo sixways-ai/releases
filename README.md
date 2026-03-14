@@ -1,41 +1,117 @@
 # SixWays Release Feed
 
-Public release feed for SixWays endpoint software. Customer instances poll this feed to discover available updates.
+Public release feed for all SixWays components. Customer instances and tooling poll this feed to discover available updates.
+
+## Components
+
+| Component | Type | Artifacts |
+|-----------|------|-----------|
+| `endpoint` | Binary | pkg, deb, rpm, msi, tar.gz |
+| `server` | Docker | Docker image + digest |
+| `gateway` | Docker | Docker image + digest |
+| `ml-gateway` | Docker | Docker image + digest |
+| `sandbox` | Docker | Docker image + digest |
+| `vscode-extension` | VSIX | VS Code extension package |
 
 ## Feed URLs
 
 | URL | Description |
 |-----|-------------|
-| `/latest.json` | Latest stable release with full detail |
-| `/index.json` | Complete release catalog |
+| `/latest.json` | Latest release per component |
+| `/index.json` | Complete release catalog (all components) |
 | `/channels/stable.json` | Stable channel releases |
 | `/channels/beta.json` | Beta channel releases |
-| `/versions/{version}.json` | Per-version detail with artifacts |
+| `/components/{component}/latest.json` | Per-component latest stable/beta |
+| `/versions/{component}/{version}.json` | Per-version detail with artifacts |
 
 Base URL: `https://sixways-ai.github.io/releases`
 
+## Tag Format
+
+Releases use component-prefixed tags:
+
+```
+endpoint/v1.3.0
+server/v1.3.0
+gateway/v2.0.0-beta.1
+ml-gateway/v1.0.0
+sandbox/v1.2.0
+vscode-extension/v0.5.0
+```
+
+Legacy tags without a prefix (e.g., `v1.0.0`) are treated as `endpoint` releases for backwards compatibility.
+
 ## Publishing a Release
 
-1. Create a GitHub Release with a tag like `v1.0.0` (or `v1.1.0-beta.1` for pre-release)
+### Endpoint Release (binary assets)
+
+1. Create a GitHub Release with tag `endpoint/v1.3.0`
 2. Attach binary artifacts (pkg, deb, rpm, msi, tar.gz)
-3. Optionally include YAML frontmatter in the release body for metadata:
+3. Include YAML frontmatter in the release body:
 
 ```markdown
 ---
-urgency: critical
-min_version: 0.9.0
-containers: base=ghcr.io/sixways-ai/sixways-sandbox:1.0.0-base@sha256:abc123
+urgency: recommended
+min_version: 1.2.0
+sha256_sixways_1_3_0_macos_aarch64_tar_gz: abc123...
 ---
 
 ## What's New
 
-- Feature X
-- Bug fix Y
+- Improved detection engine
+- Fixed false positive in network monitor
 ```
 
-The GitHub Actions workflow automatically regenerates the JSON feed files when a release is published.
+### Server Release (Docker image)
 
-## Asset Naming Convention
+1. Create a GitHub Release with tag `server/v1.3.0`
+2. Include Docker image details in YAML frontmatter:
+
+```markdown
+---
+urgency: recommended
+docker_image: ghcr.io/sixways-ai/sixways-server:1.3.0
+docker_digest: sha256:abc123def456...
+helm_chart_version: 1.3.0
+---
+
+## What's New
+
+- Added multi-tenant policy support
+- Performance improvements for large fleets
+```
+
+### VS Code Extension Release
+
+1. Create a GitHub Release with tag `vscode-extension/v0.5.0`
+2. Include VSIX URL in frontmatter:
+
+```markdown
+---
+urgency: recommended
+vsix_url: https://github.com/sixways-ai/vscode-extension/releases/download/v0.5.0/sixways-0.5.0.vsix
+---
+
+## What's New
+
+- Inline threat annotations
+```
+
+## Frontmatter Keys
+
+| Key | Description |
+|-----|-------------|
+| `urgency` | Update urgency: `critical`, `recommended`, `optional` |
+| `min_version` | Minimum version required before upgrading |
+| `component` | Component name (optional, inferred from tag) |
+| `docker_image` | Full Docker image reference (for Docker components) |
+| `docker_digest` | Docker image digest (for Docker components) |
+| `vsix_url` | Download URL for VSIX package |
+| `helm_chart_version` | Associated Helm chart version |
+| `containers` | Legacy container format (deprecated) |
+| `sha256_*` | SHA-256 hash for a specific binary asset |
+
+## Asset Naming Convention (endpoint)
 
 The workflow parses platform, architecture, and artifact type from filenames:
 
@@ -52,13 +128,13 @@ Include `arm64` or `aarch64` in the filename for ARM builds.
 
 ## Schema Version
 
-Current schema version: **1**
+Current schema version: **2**
 
-All JSON files include a `schema_version` field. Customer instances should check this field and handle unknown versions gracefully.
+All JSON files include a `schema_version` field. Consumers should check this field and handle unknown versions gracefully.
 
 ## Feed Signing
 
-Feed JSON files are signed with Ed25519 (signify-openbsd) when `FEED_SIGNING_KEY` GitHub Actions secret is configured. Signature files are committed alongside feed JSON. Clients should verify signatures against the public key.
+Feed JSON files are signed with Ed25519 (signify-openbsd) when `FEED_SIGNING_KEY` GitHub Actions secret is configured. Signature files are committed alongside feed JSON, including per-component files. Clients should verify signatures against the public key.
 
 ## GitHub Actions Secrets
 

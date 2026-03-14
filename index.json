@@ -1,6 +1,7 @@
 {
-  "schema_version": 1,
-  "updated_at": "2026-03-12T00:00:00Z",
+  "schema_version": 2,
+  "updated_at": "2026-03-14T00:00:00Z",
+  "components": ["endpoint", "server", "gateway", "ml-gateway", "sandbox", "vscode-extension"],
   "channels": ["stable", "beta"],
   "releases": []
 }
