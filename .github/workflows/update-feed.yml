@@ -28,6 +28,9 @@ jobs:
             const COMPONENTS = ['endpoint', 'server', 'gateway', 'ml-gateway', 'sandbox', 'vscode-extension'];
             const DOCKER_COMPONENTS = new Set(['server', 'gateway', 'ml-gateway', 'sandbox']);
 
+            // Base URL for the GitHub Pages site where per-version detail files are hosted
+            const FEED_BASE_URL = 'https://sixways-ai.github.io/releases';
+
             // Fetch all releases from GitHub API
             const releases = await github.paginate(
               github.rest.repos.listReleases,
@@ -146,7 +149,7 @@ jobs:
                 release_notes_summary: summary || null,
                 min_supported_version: metadata.min_version || null,
                 artifacts,
-                detail_url: `https://sixways-ai.github.io/releases/versions/${component}/${version}.json`
+                detail_url: `${FEED_BASE_URL}/versions/${component}/${version}.json`
               };
 
               feedReleases.push(releaseEntry);

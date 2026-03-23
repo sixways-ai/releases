@@ -10,13 +10,17 @@ Releases provides a static JSON feed of endpoint software releases, hosted on Gi
 
 ```
 releases/
-  index.json              # Complete release catalog
-  latest.json             # Latest stable release with full detail
+  index.json              # Complete release catalog (all components)
+  latest.json             # Latest release per component
   channels/
     stable.json           # Stable channel releases
     beta.json             # Beta channel releases
+  components/
+    {component}/
+      latest.json         # Per-component latest stable/beta
   versions/
-    {version}.json        # Per-version detail with artifact list
+    {component}/
+      {version}.json      # Per-version detail with artifacts
 ```
 
 ## Key Abstractions
@@ -39,5 +43,5 @@ releases/
 
 ## See Also
 
-- [System Overview](https://github.com/sixways-ai/architecture/blob/main/docs/system-overview.md)
-- [Repository Map](https://github.com/sixways-ai/architecture/blob/main/docs/repo-map.md)
+- [System Overview](https://github.com/sixways-ai/architecture/blob/main/docs/system-overview.md) (internal -- may require access)
+- [Repository Map](https://github.com/sixways-ai/architecture/blob/main/docs/repo-map.md) (internal -- may require access)
