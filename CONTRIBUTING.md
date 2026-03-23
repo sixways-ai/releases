@@ -108,7 +108,7 @@ Keep the subject line under 72 characters. Use the body for additional context w
 
 ## License
 
-By contributing to SixWays Releases, you agree that your contributions will be licensed under the project's proprietary license.
+By contributing to SixWays Releases, you agree that your contributions will be licensed under the Apache License 2.0.
 
 For details, see [LICENSE](LICENSE).
 

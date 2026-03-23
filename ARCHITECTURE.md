@@ -21,7 +21,7 @@ releases/
 
 ## Key Abstractions
 
-- **JSON feed schema (version 1)**: Each feed file includes a `schema_version` field for forward compatibility as the schema evolves.
+- **JSON feed schema (version 2)**: Each feed file includes a `schema_version` field for forward compatibility as the schema evolves.
 - **Channel model**: Stable and beta channels with separate feed files. Clients subscribe to a channel and poll its feed.
 - **Asset naming convention**: Platform, architecture, and package type are parsed from artifact filenames — `*.pkg` for macOS, `*.msi` for Windows, `*.deb` / `*.rpm` for Linux.
 - **YAML frontmatter in GitHub Release body**: Release notes include structured metadata (urgency, min_version, containers) parsed from YAML frontmatter in the GitHub Release description.
