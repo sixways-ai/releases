@@ -43,17 +43,27 @@ jobs:
             //   server/v1.3.0-beta.1  -> component=server, version=1.3.0-beta.1
             //   v1.0.0                -> component=endpoint (legacy backwards compat)
             function parseTag(tagName) {
+              const SEMVER_RE = /^\d+\.\d+\.\d+(-[a-zA-Z0-9.]+)?$/;
+
               const prefixMatch = tagName.match(/^([a-z0-9-]+)\/v(.+)$/);
               if (prefixMatch) {
                 const component = prefixMatch[1];
                 if (COMPONENTS.includes(component)) {
-                  return { component, version: prefixMatch[2] };
+                  const version = prefixMatch[2];
+                  if (!SEMVER_RE.test(version)) {
+                    console.warn(`Warning: version "${version}" does not look like valid semver`);
+                  }
+                  return { component, version };
                 }
               }
               // Legacy: bare vX.Y.Z tags are endpoint releases
               const legacyMatch = tagName.match(/^v(.+)$/);
               if (legacyMatch) {
-                return { component: 'endpoint', version: legacyMatch[1] };
+                const version = legacyMatch[1];
+                if (!SEMVER_RE.test(version)) {
+                  console.warn(`Warning: version "${version}" does not look like valid semver`);
+                }
+                return { component: 'endpoint', version };
               }
               return null;
             }

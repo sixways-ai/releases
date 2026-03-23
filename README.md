@@ -136,6 +136,16 @@ All JSON files include a `schema_version` field. Consumers should check this fie
 
 Feed JSON files are signed with Ed25519 (signify-openbsd) when `FEED_SIGNING_KEY` GitHub Actions secret is configured. Signature files are committed alongside feed JSON, including per-component files. Clients should verify signatures against the public key.
 
+## Signature Verification
+
+The Ed25519 public key used to sign the feed is distributed in the [`keys/`](keys/) directory. To verify a feed file:
+
+```bash
+signify-openbsd -V -p keys/feed.pub -m index.json -x index.json.sig
+```
+
+All feed JSON files have corresponding `.sig` files when signing is enabled. See [`keys/README.md`](keys/README.md) for details on keypair generation and key management.
+
 ## GitHub Actions Secrets
 
 | Secret | Purpose |
