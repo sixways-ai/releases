@@ -132,6 +132,41 @@ Current schema version: **2**
 
 All JSON files include a `schema_version` field. Consumers should check this field and handle unknown versions gracefully.
 
+## Artifact Signing (Ed25519)
+
+In addition to feed signing (below), individual release artifacts are Ed25519-signed
+with an **offline signing key** held by a human (never in CI). Each GitHub Release
+includes a `sixways-update-manifest.json` containing SHA-256 hashes and Ed25519
+signatures for every artifact. The manifest itself is also signed.
+
+This is the primary trust anchor — even if the GitHub account or CI pipeline is
+compromised, an attacker cannot produce valid artifact signatures without the
+offline signing key.
+
+See [docs/manifest-schema.md](docs/manifest-schema.md) for the full manifest
+JSON schema reference.
+
+### Two Signing Keys
+
+| Key | Scope | Storage |
+|-----|-------|---------|
+| **Artifact signing key** | Signs release artifacts + update manifest | Offline (developer workstation / HSM) |
+| **Feed signing key** | Signs the feed JSON files | `FEED_SIGNING_KEY` GitHub Actions secret |
+
+## Version Revocations
+
+A signed `revocations.json` file in this repo enables emergency recall of dangerous
+versions. Endpoints check this file on startup and periodically. See
+[docs/revocation-process.md](docs/revocation-process.md) for the full process.
+
+## Channels
+
+| Channel | Tag Convention | Feed File |
+|---------|---------------|-----------|
+| `stable` | `endpoint/v1.2.0` | `channels/stable.json` |
+| `beta` | `endpoint/v1.2.0-beta.1` | `channels/beta.json` |
+| `canary` | `endpoint/v1.2.0-canary.3` | `channels/canary.json` |
+
 ## Feed Signing
 
 Feed JSON files are signed with Ed25519 (signify-openbsd) when `FEED_SIGNING_KEY` GitHub Actions secret is configured. Signature files are committed alongside feed JSON, including per-component files. Clients should verify signatures against the public key.
