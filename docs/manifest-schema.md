@@ -14,7 +14,7 @@ Current: **2**
 |-------|------|----------|-------------|
 | `schema_version` | integer | Yes | Schema version (currently `2`) |
 | `version` | string | Yes | Semver version (e.g., `"1.2.0"`) |
-| `channel` | string | Yes | `"stable"`, `"beta"`, or `"canary"` |
+| `channel` | string | Yes | `"stable"`, `"beta"`, or `"canary"` (canary is planned -- not yet implemented) |
 | `commit_sha` | string | No | Git commit SHA for provenance |
 | `build_timestamp` | string | Yes | ISO 8601 UTC build time |
 | `min_supported_version` | string | No | Minimum version required before upgrading |

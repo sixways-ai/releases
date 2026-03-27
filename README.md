@@ -161,11 +161,11 @@ versions. Endpoints check this file on startup and periodically. See
 
 ## Channels
 
-| Channel | Tag Convention | Feed File |
-|---------|---------------|-----------|
-| `stable` | `endpoint/v1.2.0` | `channels/stable.json` |
-| `beta` | `endpoint/v1.2.0-beta.1` | `channels/beta.json` |
-| `canary` | `endpoint/v1.2.0-canary.3` | `channels/canary.json` |
+| Channel | Tag Convention | Feed File | Status |
+|---------|---------------|-----------|--------|
+| `stable` | `endpoint/v1.2.0` | `channels/stable.json` | Active |
+| `beta` | `endpoint/v1.2.0-beta.1` | `channels/beta.json` | Active |
+| `canary` | `endpoint/v1.2.0-canary.3` | `channels/canary.json` | Planned -- not yet implemented |
 
 ## Feed Signing
 

@@ -4,8 +4,8 @@ Brief description of what this PR does.
 
 ## Checklist
 
-- [ ] Tests pass (`cargo test` / `npm test`)
-- [ ] Linting passes (`cargo clippy` / `npm run lint`)
+- [ ] JSON files are valid (`python -m json.tool *.json`)
+- [ ] Workflow syntax is valid (`npx yaml-lint .github/workflows/*.yml`)
 - [ ] No em-dashes used (use -- instead)
 - [ ] No hardcoded secrets or internal URLs
 - [ ] Documentation updated if needed

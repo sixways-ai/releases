@@ -1,6 +1,6 @@
 # SixWays Releases — Architecture
 
-Public release feed for endpoint software updates.
+Public release feed for all SixWays components (endpoint, server, gateway, ml-gateway, sandbox, vscode-extension).
 
 ## High-Level Design
 
@@ -34,6 +34,9 @@ releases/
 ## Cross-Repo Dependencies
 
 - Consumed by **sixways-server** for upstream release discovery and fleet update management.
+- Consumed by **sixways-endpoint** for self-update checks.
+- Consumed by **sixways-gateway** and **ml-gateway** for version awareness.
+- Consumed by **vscode-extension** for extension update checks.
 
 ## Design Decisions
 

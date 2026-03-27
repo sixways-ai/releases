@@ -49,14 +49,11 @@ For full development environment setup, see [docs/development.md](docs/developme
 
 ## Testing
 
-Validate JSON schema files:
+Validate JSON files:
 
 ```bash
 # Validate all JSON files are syntactically correct
 find . -name "*.json" -exec python -m json.tool {} > /dev/null \;
-
-# Validate against schema (if applicable)
-npx ajv validate -s schema.json -d "data/*.json"
 ```
 
 Verify GitHub Actions workflows:
