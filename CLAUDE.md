@@ -16,6 +16,7 @@ latest.json                         # Latest release per component
 channels/
   stable.json                       # Stable channel
   beta.json                         # Beta channel
+  premium.json                      # Premium channel (agent-intel feature builds)
 components/
   {component}/
     latest.json                     # Per-component latest stable/beta
@@ -39,6 +40,7 @@ versions/
 - All JSON files include `schema_version` field
 - Tags use `{component}/v{version}` format
 - Components: endpoint, server, gateway, ml-gateway, sandbox, vscode-extension
+- Channels: stable, beta, premium (premium uses `-premium.N` prerelease suffix)
 
 ## Consumed By
 
