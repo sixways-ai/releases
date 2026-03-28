@@ -165,7 +165,19 @@ versions. Endpoints check this file on startup and periodically. See
 |---------|---------------|-----------|--------|
 | `stable` | `endpoint/v1.2.0` | `channels/stable.json` | Active |
 | `beta` | `endpoint/v1.2.0-beta.1` | `channels/beta.json` | Active |
+| `premium` | `endpoint/v1.3.0-premium.1` | `channels/premium.json` | Active -- agent-intel feature builds |
 | `canary` | `endpoint/v1.2.0-canary.3` | `channels/canary.json` | Planned -- not yet implemented |
+
+## Premium Channel
+
+The premium channel delivers builds with additional licensed features such as Agent Intelligence. Premium builds:
+
+- Are published to `channels/premium.json` with the same schema as stable/beta
+- Include a `features` field in each version entry listing the premium capabilities (e.g., `["agent-intel"]`)
+- Use separate release artifacts with a `-premium` suffix (e.g., `sixwaysd-premium-windows-x64.zip`)
+- Require a valid subscription license on the endpoint to activate premium features
+
+See [docs/premium-channel.md](docs/premium-channel.md) for implementation details.
 
 ## Feed Signing
 

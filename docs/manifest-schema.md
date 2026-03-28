@@ -14,7 +14,8 @@ Current: **2**
 |-------|------|----------|-------------|
 | `schema_version` | integer | Yes | Schema version (currently `2`) |
 | `version` | string | Yes | Semver version (e.g., `"1.2.0"`) |
-| `channel` | string | Yes | `"stable"`, `"beta"`, or `"canary"` (canary is planned -- not yet implemented) |
+| `channel` | string | Yes | `"stable"`, `"beta"`, `"premium"`, or `"canary"` (canary is planned -- not yet implemented) |
+| `features` | array of strings | No | Feature flags included in this build (e.g., `["agent-intel"]`). Premium channel builds include this field to indicate which premium capabilities are bundled. |
 | `commit_sha` | string | No | Git commit SHA for provenance |
 | `build_timestamp` | string | Yes | ISO 8601 UTC build time |
 | `min_supported_version` | string | No | Minimum version required before upgrading |
